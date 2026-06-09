@@ -1,0 +1,130 @@
+ResumeAI Platform Knowledge Base
+================================
+
+About ResumeAI:
+ResumeAI is a state-of-the-art applicant tracking system (ATS) designed for MNC companies to streamline their hiring process. It uses advanced artificial intelligence to analyze resumes, detect fraud, and rank candidates based on semantic matching rather than simple keywords.
+
+Contact Support:
+For support, feedback, or enterprise sales, contact our team at support@resumeai.com or visit the Contact page on our website.
+
+Pricing Plans:
+1. Starter Plan ($49/month):
+   - Suitable for startups or small teams.
+   - Screen up to 100 resumes per month.
+   - Basic matching analysis and email support.
+2. Professional Plan ($149/month):
+   - Best for growing companies.
+   - Screen up to 500 resumes per month.
+   - Deep semantic analysis, fraud detection, and priority support.
+3. Enterprise Plan (Custom pricing):
+   - Designed for large MNCs.
+   - Screen up to 1500 resumes per month.
+   - Custom AI models, 24/7 support, and API access.
+
+Candidate Features:
+- Seamless registration and login using email.
+- Complete job board displaying all active job openings posted by HR.
+- Simple application process: upload resume (PDF format) and submit.
+- Real-time application tracking dashboard to view history and status (Processing, Pending, Approved, Rejected).
+
+HR/Recruiter Features:
+- Multi-job posting dashboard. HRs can create new job descriptions (JDs) with specific requirements.
+- Applicant list view: candidates are automatically ranked and sorted by their AI screening match score.
+- Detailed AI scoring (0-100) and actionable reasoning (matching skills, missing skills, projects complexity, and experience relevance).
+- Real-time updates: whenever a candidate applies, the dashboard updates instantly using WebSockets.
+- Decision panel: select "Approve" or "Reject" to trigger automated emails (via SMTP) to candidates with their status.
+
+Frequently Asked Questions (FAQs):
+Q: What types of files are supported for resume upload?
+A: Currently, only PDF format (.pdf) is supported.
+
+Q: Is my candidate data secure?
+A: Yes. All uploaded resumes are saved securely in the backend server upload storage. Resume parsing and similarity calculations are executed using an in-memory database and only relevant portions are evaluated by the AI model. No personal candidate details are sent to external third parties.
+
+Q: What model is used for matching?
+A: The system uses Qwen/Qwen2.5-7B-Instruct for matching reasoning and sentence-transformers/all-MiniLM-L6-v2 for semantic embeddings.
+
+Q: Can candidates apply multiple times to the same job?
+A: No, candidates can only submit one application per job posting to prevent spam.
+
+---
+
+Technical Documentation & Architecture
+======================================
+
+Overview:
+The Resume Matcher is an AI-powered application designed to analyze resumes against job descriptions (JDs). It automates the screening process by parsing PDF resumes, extracting key skills, and using a Large Language Model (LLM) to score candidates and provide justification for hiring decisions.
+
+Technology Stack:
+
+Backend:
+- Framework: FastAPI (Python 3.10+)
+  - Provides high-performance, async support, and an excellent ecosystem for AI/Data applications.
+- Parsing: Docling (via DocumentConverter)
+  - Provides advanced PDF-to-Markdown conversion that preserves layout structures, lists, and headers better than simple text extraction.
+- Orchestration: LangChain
+  - Provides a unified interface for interacting with LLMs, managing prompts, and connecting to vector stores.
+
+AI & Models:
+- LLM: Qwen/Qwen2.5-7B-Instruct (via langchain_huggingface.ChatHuggingFace)
+  - A highly capable model that balances performance and speed, offering high-quality reasoning tasks like resume scoring.
+- Embeddings: sentence-transformers/all-MiniLM-L6-v2
+  - Lightweight, fast, and effective model for semantic vector representation.
+- Vector Database: Qdrant (In-Memory)
+  - Efficient similarity search for RAG (Retrieval-Augmented Generation). Running in-memory allows for zero-setup deployments.
+
+Step-by-Step Resume Screening Workflow:
+
+1. Document Parsing (Docling):
+   - User uploads a PDF resume.
+   - Backend saves it temporarily in the `uploads/` or `temp/` folder.
+   - Docling converts the PDF into structured Markdown text, preserving formatting and layout.
+2. Chunking & Embedding:
+   - The full resume text is split into chunks of 500 characters with 50 characters of overlap using the `RecursiveCharacterTextSplitter`.
+   - Each chunk is embedded into a dense vector using the `all-MiniLM-L6-v2` model.
+3. Retrieval (RAG via Qdrant):
+   - The chunk vectors are stored in an in-memory Qdrant collection.
+   - The Job Description is also embedded.
+   - A semantic similarity search retrieves the top 5 resume chunks most relevant to the JD (matching skills, experience, qualifications).
+   - These retrieved chunks form the context.
+4. Reasoning & Scoring (Qwen LLM):
+   - A prompt is constructed with recruiter role guidelines.
+   - The LLM analyzes the match and outputs a structured JSON:
+     * candidate_name
+     * candidate_role
+     * score (0-100)
+     * decision (Select/Hold/Reject)
+     * justification (structured points about matching/missing skills, experience, projects)
+5. Response & Action:
+   - The backend parses and sanitizes the JSON response, saving the application to the PostgreSQL database.
+   - Real-time notification updates are broadcast via WebSockets, and automatic SMTP email alerts are triggered upon HR decision updates.
+
+---
+
+Website Component & Page Details
+=================================
+
+1. Landing Page:
+   - Navbar: Contains navigation links (Home, Features, Pricing, Login / Register, Try AI Screening).
+   - Hero Section: Captivating headers, subtext about MNC-level screening, and primary buttons.
+   - Live Screening Demo Widget: Clicking "Try AI Screening" opens a modal containing a Drag-and-Drop file uploader and a Job Description text area. Users can test the resume screening process in real-time.
+   - Features Grid: Explains the core capabilities (Semantic Analysis, Fraud Detection, Explainable Results).
+   - Pricing Grid: Shows Starter, Professional, and Enterprise plans.
+   - Footer: Site copyright.
+
+2. Auth (Login & Registration) Page:
+   - Clean, animated form to sign in or register.
+   - Contains a toggle switch for role selection: Candidate vs. HR Recruiter.
+   - Redirects to their respective dashboard upon validation.
+
+3. HR Dashboard:
+   - Statistics Cards: Row showing total jobs, total applications received, number of AI shortlisted applicants, and number of approved applicants.
+   - Job Selector Tabs: Displays all job postings created by the HR, along with badge counters of applicants for each job.
+   - Applications Table: Displays candidates ranked by their AI match score. Shows Candidate name, email, AI Score, AI Decision, HR status, and Actions (Approve/Reject buttons).
+   - Expanded Application View: Clicking details displays the AI Justification (points list detailing matched skills, missing skills, experience relevance, project complexity) and a hyperlink to view the candidate's PDF resume.
+   - New Job Posting Modal: Floating modal triggered by the "New Job Posting" button. Contains input fields for Job Title and Job Description to post new openings.
+
+4. Candidate Dashboard:
+   - Job Board: Lists open jobs posted by recruiters, including job titles, descriptions, and HR names.
+   - Application Upload: Drag-and-Drop area allowing candidates to upload their PDF resume.
+   - Application Status Table: Lists jobs applied to, showing job details, applied date, AI score, AI decision, and current HR status.
