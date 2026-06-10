@@ -71,8 +71,10 @@ KNOWLEDGE BASE CONTEXT:
 def init_chatbot_kb() -> None:
     """
     Load local knowledge-base text files, chunk them, embed them, and store
-    them in an in-memory Qdrant collection.  Called once at startup in a
+    them in an in-memory Qdrant collection. Called once at startup in a
     background thread to avoid blocking the server.
+
+    Populates the global `chatbot_vectorstore` used by generate_response().
     """
     global chatbot_vectorstore
 
@@ -134,14 +136,19 @@ def init_chatbot_kb() -> None:
 
 async def generate_response(messages: list[dict]) -> str:
     """
-    Given a conversation history (list of {role, content} dicts), retrieve
-    relevant KB context and stream a response from the chatbot LLM.
+    Given a conversation history, retrieve relevant KB context via RAG and generate
+    a response from the chatbot LLM.
+
+    @param messages: List of {role, content} dicts representing the conversation history.
+    @returns: The assistant's response as a plain string.
     """
-    # 1. Find latest user message
+    # 1. Find latest user message and guard against prompt injection via oversized input
     latest_query = next(
         (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
         "",
     )
+    # Truncate excessively long user messages to prevent context overflow and prompt injection
+    latest_query = latest_query[:1000]
 
     # 2. RAG retrieval
     context_text = ""

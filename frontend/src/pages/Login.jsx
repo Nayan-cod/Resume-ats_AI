@@ -4,6 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { Bot, Mail, Lock, User, ArrowRight, Briefcase, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+/**
+ * Login and Registration page.
+ * Handles both sign-in and sign-up with client-side validation before API calls.
+ */
 export default function Login() {
     const [isLogin, setIsLogin] = useState(true);
     const [role, setRole] = useState('candidate');
@@ -19,15 +23,30 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        setLoading(true);
 
+        // Client-side validation — mirrors backend validators for immediate feedback
+        const emailTrimmed = email.trim().toLowerCase();
+        const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRe.test(emailTrimmed)) {
+            setError('Please enter a valid email address.');
+            return;
+        }
+        if (password.length < 8) {
+            setError('Password must be at least 8 characters.');
+            return;
+        }
+        if (!isLogin) {
+            if (!name.trim()) { setError('Full name is required.'); return; }
+            if (name.trim().length > 100) { setError('Name must be 100 characters or fewer.'); return; }
+        }
+
+        setLoading(true);
         try {
             let user;
             if (isLogin) {
-                user = await login(email, password);
+                user = await login(emailTrimmed, password);
             } else {
-                if (!name.trim()) { setError('Name is required'); setLoading(false); return; }
-                user = await register(email, password, name, role);
+                user = await register(emailTrimmed, password, name, role);
             }
             navigate('/dashboard');
         } catch (err) {

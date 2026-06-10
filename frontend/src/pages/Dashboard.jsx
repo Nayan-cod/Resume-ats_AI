@@ -6,6 +6,10 @@ import { Search, Bell, Plus, Briefcase, Users, CheckCircle2, XCircle, ChevronDow
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_URL } from '../lib/config';
 
+/**
+ * HR Dashboard — main workspace for reviewing applications, updating statuses,
+ * and creating job postings. Receives real-time updates via WebSocket.
+ */
 export default function Dashboard() {
     const { authFetch, user } = useAuth();
     const [jobs, setJobs] = useState([]);
@@ -15,6 +19,9 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [loadingApps, setLoadingApps] = useState(false);
     const [expandedApp, setExpandedApp] = useState(null);
+    const [fetchError, setFetchError] = useState('');       // top-level dashboard error
+    const [appsError, setAppsError] = useState('');         // per-job applications error
+    const [smtpWarning, setSmtpWarning] = useState('');     // SMTP-not-configured feedback
 
     // New Job Modal
     const [showNewJob, setShowNewJob] = useState(false);
@@ -88,8 +95,13 @@ ResumeAI ATS Platform`
     }, [selectedJob]);
     useWebSocket(handleWsMessage);
 
+    /**
+     * Fetch the HR's job list and dashboard stats in parallel.
+     * Populates the job tabs and stats cards at the top of the dashboard.
+     */
     const fetchDashboard = async () => {
         setLoading(true);
+        setFetchError('');
         try {
             const [jobsRes, statsRes] = await Promise.all([
                 authFetch('/api/hr/jobs'),
@@ -102,22 +114,36 @@ ResumeAI ATS Platform`
                     setSelectedJob(jobsData[0]);
                     fetchApplications(jobsData[0].id);
                 }
+            } else {
+                setFetchError('Failed to load dashboard data. Please refresh.');
             }
             if (statsRes.ok) setStats(await statsRes.json());
         } catch (err) {
             console.error(err);
+            setFetchError('Network error loading dashboard. Please check your connection.');
         } finally {
             setLoading(false);
         }
     };
 
+    /**
+     * Fetch all applications for a specific job and update the applications table.
+     *
+     * @param {number} jobId - The job's database ID.
+     */
     const fetchApplications = async (jobId) => {
         setLoadingApps(true);
+        setAppsError('');
         try {
             const res = await authFetch(`/api/hr/jobs/${jobId}/applications`);
-            if (res.ok) setApplications(await res.json());
+            if (res.ok) {
+                setApplications(await res.json());
+            } else {
+                setAppsError('Failed to load applications for this job.');
+            }
         } catch (err) {
             console.error(err);
+            setAppsError('Network error loading applications.');
         } finally {
             setLoadingApps(false);
         }
@@ -129,17 +155,26 @@ ResumeAI ATS Platform`
         setExpandedApp(null);
     };
 
+    /**
+     * Send a status update (approve/reject) for an application with the optional custom email.
+     * Shows the SMTP warning from the API response if the HR's email is not configured.
+     *
+     * @param {number} appId - The application's database ID.
+     * @param {string} status - Either 'approved' or 'rejected'.
+     */
     const handleStatusUpdate = async (appId, status) => {
         setLoadingApps(true);
+        setSmtpWarning('');
         try {
             const res = await authFetch(`/api/applications/${appId}/status`, {
                 method: 'PATCH',
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     status,
                     email_subject: emailSubject,
                     email_body: emailBody
                 })
             });
+            const data = await res.json();
             if (res.ok) {
                 fetchApplications(selectedJob.id);
                 fetchDashboard();
@@ -148,13 +183,14 @@ ResumeAI ATS Platform`
                 setConfirmingStatus('');
                 setEmailSubject('');
                 setEmailBody('');
+                // Surface SMTP warning if HR hasn't configured their email settings
+                if (data.email_warning) setSmtpWarning(data.email_warning);
             } else {
-                const data = await res.json();
-                alert(data.detail || "Failed to update candidate status.");
+                alert(data.error?.message || data.detail || 'Failed to update candidate status.');
             }
         } catch (err) {
             console.error(err);
-            alert("An error occurred: " + err.message);
+            alert('Network error: ' + err.message);
         } finally {
             setLoadingApps(false);
         }
@@ -215,6 +251,21 @@ ResumeAI ATS Platform`
                 </header>
 
                 <div className="p-8 max-w-7xl mx-auto space-y-8">
+                    {/* Dashboard fetch error */}
+                    {fetchError && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl flex items-center gap-2">
+                            <span>⚠️</span> {fetchError}
+                        </div>
+                    )}
+
+                    {/* SMTP warning banner — shown after approve/reject if email not configured */}
+                    {smtpWarning && (
+                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-3 rounded-xl flex items-center justify-between gap-2">
+                            <span>⚠️ {smtpWarning}</span>
+                            <button onClick={() => setSmtpWarning('')} className="text-amber-600 hover:text-amber-900 font-bold text-lg leading-none">×</button>
+                        </div>
+                    )}
+
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {[
@@ -282,7 +333,13 @@ ResumeAI ATS Platform`
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {loadingApps ? (
-                                            <tr><td colSpan="6" className="text-center py-8 text-gray-500">Loading applications...</td></tr>
+                                            <tr><td colSpan="6" className="text-center py-8">
+                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                                            </td></tr>
+                                        ) : appsError ? (
+                                            <tr><td colSpan="6" className="text-center py-8 text-red-500 text-sm">
+                                                ⚠️ {appsError}
+                                            </td></tr>
                                         ) : applications.length === 0 ? (
                                             <tr><td colSpan="6" className="text-center py-12 text-gray-400">
                                                 <Users className="mx-auto mb-2" size={32} />

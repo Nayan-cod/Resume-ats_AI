@@ -5,11 +5,16 @@ import Sidebar from '../components/layout/Sidebar';
 import { Search, Upload, Briefcase, FileText, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+/**
+ * Candidate Dashboard — job browsing and application tracking for candidates.
+ * Real-time updates via WebSocket when HR makes decisions on applications.
+ */
 export default function CandidateDashboard() {
     const { authFetch, user } = useAuth();
     const [jobs, setJobs] = useState([]);
     const [myApps, setMyApps] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(''); // Error for the initial data load
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' or 'applications'
 
@@ -37,24 +42,47 @@ export default function CandidateDashboard() {
     }, []);
     useWebSocket(handleWsMessage);
 
+    /**
+     * Fetch available jobs and the candidate's own applications in parallel.
+     * Stores results in state; shows an error message on failure.
+     */
     const fetchData = async () => {
         setLoading(true);
+        setFetchError('');
         try {
             const [jobsRes, appsRes] = await Promise.all([
                 authFetch('/api/jobs'),
                 authFetch('/api/my-applications')
             ]);
             if (jobsRes.ok) setJobs(await jobsRes.json());
+            else setFetchError('Failed to load job listings. Please refresh.');
             if (appsRes.ok) setMyApps(await appsRes.json());
         } catch (err) {
             console.error(err);
+            setFetchError('Network error loading data. Please check your connection.');
         } finally {
             setLoading(false);
         }
     };
 
+    /**
+     * Submit a resume application for the selected job.
+     * Validates file type (.pdf) and size (max 5 MB) before uploading.
+     */
     const handleApply = async () => {
         if (!resumeFile || !showApply) return;
+
+        // Client-side file validation
+        if (!resumeFile.name.toLowerCase().endsWith('.pdf')) {
+            setApplyMsg('Only PDF files are accepted.');
+            return;
+        }
+        const MAX_SIZE_MB = 5;
+        if (resumeFile.size > MAX_SIZE_MB * 1024 * 1024) {
+            setApplyMsg(`File is too large. Maximum size is ${MAX_SIZE_MB} MB.`);
+            return;
+        }
+
         setApplying(true);
         setApplyMsg('');
 
@@ -71,10 +99,10 @@ export default function CandidateDashboard() {
                 setApplyMsg('Application submitted! AI is screening your resume...');
                 setTimeout(() => { setShowApply(null); setResumeFile(null); setApplyMsg(''); fetchData(); }, 2000);
             } else {
-                setApplyMsg(data.detail || 'Failed to apply');
+                setApplyMsg(data.error?.message || data.detail || 'Failed to apply. Please try again.');
             }
         } catch (err) {
-            setApplyMsg('Network error');
+            setApplyMsg('Network error. Please check your connection and try again.');
         } finally {
             setApplying(false);
         }
@@ -147,7 +175,18 @@ export default function CandidateDashboard() {
                     </div>
 
                     {loading ? (
-                        <div className="text-center py-16 text-gray-500">Loading...</div>
+                        <div className="text-center py-16">
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                            <p className="text-gray-400 text-sm">Loading...</p>
+                        </div>
+                    ) : fetchError ? (
+                        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm flex items-center gap-2">
+                            <span>⚠️</span>
+                            <div>
+                                {fetchError}
+                                <button onClick={fetchData} className="block underline text-xs mt-1">Retry</button>
+                            </div>
+                        </div>
                     ) : activeTab === 'jobs' ? (
                         /* ── JOB BOARD ── */
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

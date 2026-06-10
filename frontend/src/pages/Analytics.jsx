@@ -4,6 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, Users, UserCheck, Clock, AlertCircle } from 'lucide-react';
 
+/**
+ * Analytics Dashboard — displays recruitment metrics for the logged-in HR user.
+ * Includes application trend charts, pipeline status pie chart, and top skills bar chart.
+ * Handles loading (spinner), error (retry button), and empty (no-data placeholder) states.
+ */
 export default function Analytics() {
     const { authFetch } = useAuth();
     const [timelineData, setTimelineData] = useState([]);

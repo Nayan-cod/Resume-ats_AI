@@ -8,8 +8,17 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ats_db").strip()
 
 def get_conn():
-    """Get a new database connection."""
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    """
+    Open and return a new PostgreSQL database connection.
+
+    @returns: A psycopg2 connection with RealDictCursor factory.
+    @raises RuntimeError: If the database is unreachable or credentials are invalid.
+    """
+    try:
+        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    except psycopg2.OperationalError as exc:
+        # Re-raise with a clear message so the caller knows it's a DB connectivity issue
+        raise RuntimeError(f"Database connection failed. Check DATABASE_URL and network access: {exc}") from exc
 
 def init_db():
     """Create all tables if they don't exist and perform schema migrations."""
@@ -92,6 +101,15 @@ def init_db():
 # ── User Functions ──
 
 def create_user(email: str, password_hash: str, name: str, role: str) -> dict:
+    """
+    Insert a new user record and return the created user (without password_hash).
+
+    @param email: The user's email address (unique).
+    @param password_hash: Bcrypt-hashed password string.
+    @param name: The user's display name.
+    @param role: Either 'hr' or 'candidate'.
+    @returns: Dict with id, email, name, and role.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute(
@@ -104,6 +122,12 @@ def create_user(email: str, password_hash: str, name: str, role: str) -> dict:
     return user
 
 def get_user_by_email(email: str) -> dict | None:
+    """
+    Look up a user by their email address.
+
+    @param email: The email address to search for.
+    @returns: Dict with id, email, password_hash, name, role — or None if not found.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute('SELECT id, email, password_hash, name, role FROM users WHERE email = %s', (email,))
@@ -112,6 +136,12 @@ def get_user_by_email(email: str) -> dict | None:
     return dict(row) if row else None
 
 def get_user_by_id(user_id: int) -> dict | None:
+    """
+    Retrieve a user by their primary key (safe fields only — no password_hash).
+
+    @param user_id: The user's database ID.
+    @returns: Dict with id, email, name, role — or None if not found.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute('SELECT id, email, name, role FROM users WHERE id = %s', (user_id,))
@@ -122,6 +152,14 @@ def get_user_by_id(user_id: int) -> dict | None:
 # ── Job Functions ──
 
 def create_job(title: str, description: str, hr_id: int) -> dict:
+    """
+    Insert a new job posting and return the created record.
+
+    @param title: Job title string.
+    @param description: Full job description text.
+    @param hr_id: The posting HR user's database ID.
+    @returns: Dict with id, title, description, hr_id, created_at.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute(
@@ -453,6 +491,16 @@ def get_hr_smtp(user_id: int) -> dict | None:
     return dict(row) if row and row.get('smtp_host') else None
 
 def get_pending_emails_by_job(job_id: int) -> list:
+    """
+    Return all applications for a job where a decision has been made but the
+    notification email has not yet been sent — for both approved AND rejected candidates.
+
+    @param job_id: The job's database ID.
+    @returns: List of application dicts with applicant_email, applicant_name, hr_status, and job_title.
+
+    NOTE: Previously this only queried 'approved' status, which caused rejection emails to
+    never be sent via the release-emails endpoint. Fixed to include both statuses.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute(
@@ -460,7 +508,9 @@ def get_pending_emails_by_job(job_id: int) -> list:
              FROM applications a
              JOIN users u ON a.user_id = u.id
              JOIN jobs j ON a.job_id = j.id
-             WHERE a.job_id = %s AND a.hr_status = 'approved' AND a.email_sent = FALSE''',
+             WHERE a.job_id = %s
+               AND a.hr_status IN ('approved', 'rejected')
+               AND a.email_sent = FALSE''',
         (job_id,)
     )
     rows = c.fetchall()
@@ -468,11 +518,16 @@ def get_pending_emails_by_job(job_id: int) -> list:
     return [dict(r) for r in rows]
 
 def mark_application_emails_sent(app_ids: list):
+    """
+    Mark a batch of applications as email_sent = TRUE after successful dispatch.
+
+    @param app_ids: List of application database IDs to mark as sent.
+    """
     if not app_ids:
         return
     conn = get_conn()
     c = conn.cursor()
-    # Format query for IN clause with multiple IDs or single ID
+    # Use a tuple for IN clause; psycopg2 requires single-element tuples to use = instead of IN
     if len(app_ids) == 1:
         c.execute('UPDATE applications SET email_sent = TRUE WHERE id = %s', (app_ids[0],))
     else:
@@ -481,6 +536,15 @@ def mark_application_emails_sent(app_ids: list):
     conn.close()
 
 def log_login_attempt(email: str, status: str, user_id: int = None, ip_address: str = None, user_agent: str = None):
+    """
+    Record a login attempt (success or failure) for audit and security monitoring.
+
+    @param email: The email address used in the attempt.
+    @param status: Either 'success' or 'failed'.
+    @param user_id: The matched user's ID, if found (None for unknown-email attempts).
+    @param ip_address: The request origin IP address for IP-based auditing.
+    @param user_agent: The browser/client user-agent string.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute(
@@ -492,6 +556,11 @@ def log_login_attempt(email: str, status: str, user_id: int = None, ip_address: 
     conn.close()
 
 def get_public_stats() -> dict:
+    """
+    Return platform-wide aggregate statistics for the landing page counters.
+
+    @returns: Dict with total_candidates, total_hrs, total_jobs, and total_selected counts.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute('''

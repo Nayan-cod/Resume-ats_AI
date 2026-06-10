@@ -1,3 +1,7 @@
+"""
+Matcher service: evaluates a resume against a job description using RAG + a HuggingFace LLM.
+Returns a structured score, decision, and justification.
+"""
 import os
 import re
 import json
@@ -68,7 +72,13 @@ _ERROR_RESPONSE = {
 
 
 def _extract_json(raw: str) -> dict:
-    """Parse the first JSON object from a (possibly Markdown-wrapped) LLM response."""
+    """
+    Parse the first JSON object from a (possibly Markdown-wrapped) LLM response.
+
+    @param raw: Raw LLM output string, potentially wrapped in ```json ... ``` fences.
+    @returns: Parsed dict with candidate_name, candidate_role, score, decision, justification.
+    @raises json.JSONDecodeError: If no valid JSON object can be extracted.
+    """
     cleaned = raw.strip()
 
     if "```" in cleaned:
@@ -97,10 +107,19 @@ async def evaluate_candidate(resume_text: str, job_description: str) -> dict:
     Score a resume against a job description using RAG + LLM.
 
     Steps:
-      1. Chunk and embed the resume text into an in-memory Qdrant collection.
-      2. Retrieve the most relevant chunks for the JD.
-      3. Ask the LLM to score and return a structured JSON result.
+      1. Guard against excessively long inputs to prevent LLM token overflow.
+      2. Chunk and embed the resume text into an in-memory Qdrant collection.
+      3. Retrieve the most relevant chunks for the JD via semantic search.
+      4. Ask the LLM to score and return a structured JSON result.
+
+    @param resume_text: Plain-text content extracted from the candidate's PDF resume.
+    @param job_description: The job description text to match the resume against.
+    @returns: Dict with candidate_name, candidate_role, score (0-100), decision, and justification list.
     """
+    # Cap inputs to avoid exceeding LLM context limits and controlling API costs
+    resume_text = resume_text[:8000]
+    job_description = job_description[:2000]
+
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(resume_text)
 

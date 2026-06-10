@@ -1,3 +1,10 @@
+"""
+Email service: sends candidate decision emails via SMTP.
+Supports per-HR custom SMTP settings (stored in DB) with a fallback to the global .env config.
+
+[ACTION NEEDED]: Add rate limiting at the reverse-proxy or application level to prevent
+email flooding. Consider a per-HR daily send quota.
+"""
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -11,8 +18,20 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
+# Connection timeout in seconds — prevents SMTP hangs from blocking worker threads
+_SMTP_TIMEOUT_SECONDS = 10
+
 def send_email(to_email: str, subject: str, html_body: str, smtp_config: dict = None):
-    """Send an email using custom SMTP settings if provided, otherwise falling back to global ones."""
+    """
+    Send an HTML email via SMTP. Uses the HR's custom smtp_config if provided,
+    otherwise falls back to the global SMTP_EMAIL/SMTP_PASSWORD from .env.
+
+    @param to_email: Recipient email address.
+    @param subject: Email subject line.
+    @param html_body: Full HTML content of the email body.
+    @param smtp_config: Optional dict with smtp_email, smtp_password, smtp_host, smtp_port.
+    @returns: True if the email was sent successfully, False otherwise.
+    """
     email = SMTP_EMAIL
     password = SMTP_PASSWORD
     server_host = SMTP_SERVER
@@ -43,13 +62,13 @@ def send_email(to_email: str, subject: str, html_body: str, smtp_config: dict = 
 
         msg.attach(MIMEText(html_body, "html"))
 
-        # Connect to SMTP (Support SSL for port 465, TLS for others)
+        # Use SSL for port 465 (SMTP over SSL), otherwise use STARTTLS
         if server_port == 465:
-            with smtplib.SMTP_SSL(server_host, server_port) as server:
+            with smtplib.SMTP_SSL(server_host, server_port, timeout=_SMTP_TIMEOUT_SECONDS) as server:
                 server.login(email, password)
                 server.sendmail(email, to_email, msg.as_string())
         else:
-            with smtplib.SMTP(server_host, server_port) as server:
+            with smtplib.SMTP(server_host, server_port, timeout=_SMTP_TIMEOUT_SECONDS) as server:
                 server.starttls()
                 server.login(email, password)
                 server.sendmail(email, to_email, msg.as_string())
@@ -61,7 +80,15 @@ def send_email(to_email: str, subject: str, html_body: str, smtp_config: dict = 
         return False
 
 def send_approval_email(to_email: str, candidate_name: str, job_title: str, smtp_config: dict = None):
-    """Send an approval/selection email to a candidate."""
+    """
+    Send a pre-formatted approval/selection email to a candidate.
+
+    @param to_email: Candidate's email address.
+    @param candidate_name: The candidate's display name for personalisation.
+    @param job_title: The job title they were approved for.
+    @param smtp_config: Optional HR-specific SMTP config dict.
+    @returns: True if the email was sent successfully, False otherwise.
+    """
     subject = f"Congratulations! You've been selected for {job_title}"
     html_body = f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -92,7 +119,15 @@ def send_approval_email(to_email: str, candidate_name: str, job_title: str, smtp
     return send_email(to_email, subject, html_body, smtp_config)
 
 def send_rejection_email(to_email: str, candidate_name: str, job_title: str, smtp_config: dict = None):
-    """Send a rejection email to a candidate."""
+    """
+    Send a pre-formatted rejection email to a candidate.
+
+    @param to_email: Candidate's email address.
+    @param candidate_name: The candidate's display name for personalisation.
+    @param job_title: The job title they applied for.
+    @param smtp_config: Optional HR-specific SMTP config dict.
+    @returns: True if the email was sent successfully, False otherwise.
+    """
     subject = f"Application Update for {job_title}"
     html_body = f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
