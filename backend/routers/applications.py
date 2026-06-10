@@ -252,6 +252,15 @@ async def update_application_status(
     # Load HR's SMTP settings from DB (configured in Settings → Email SMTP)
     smtp_config = _build_smtp_config(current_user["user_id"])
 
+    # Check if either custom SMTP or global fallback is configured
+    global_email = email_service.SMTP_EMAIL
+    global_password = email_service.SMTP_PASSWORD
+    has_smtp = bool(smtp_config) or (
+        bool(global_email)
+        and bool(global_password)
+        and global_email != "your_email@gmail.com"
+    )
+
     candidate_email = app_details["applicant_email"]
     candidate_name = app_details.get("candidate_name") or app_details.get("applicant_name", "Candidate")
     job_title = app_details.get("job_title", "the position")
@@ -259,10 +268,10 @@ async def update_application_status(
     success = False
     email_warning = None
 
-    if not smtp_config:
-        # SMTP not configured in the HR dashboard — email cannot be sent
+    if not has_smtp:
+        # SMTP not configured in either HR dashboard or globally
         email_warning = "Email not sent: No SMTP settings configured. Go to Settings → Email SMTP to set up your mail server."
-        print(f"[SMTP WARNING] HR {current_user['user_id']} has no SMTP configured — skipping email for app {app_id}.")
+        print(f"[SMTP WARNING] HR {current_user['user_id']} has no SMTP configured and no global fallback exists — skipping email for app {app_id}.")
     else:
         try:
             if req.email_subject and req.email_body:
@@ -373,7 +382,14 @@ async def release_emails(
         raise HTTPException(status_code=403, detail="This job does not belong to you.")
 
     smtp_config = _build_smtp_config(current_user["user_id"])
-    if not smtp_config:
+    global_email = email_service.SMTP_EMAIL
+    global_password = email_service.SMTP_PASSWORD
+    has_smtp = bool(smtp_config) or (
+        bool(global_email)
+        and bool(global_password)
+        and global_email != "your_email@gmail.com"
+    )
+    if not has_smtp:
         return {
             "message": "No SMTP settings configured. Please go to Settings → Email SMTP to configure your mail server before releasing emails.",
             "released_count": 0,

@@ -76,7 +76,16 @@ async def update_smtp_settings(
     @raises HTTPException 500: If encryption or DB update fails.
     """
     try:
-        encrypted_password = security.encrypt_password(req.smtp_password)
+        # If no password is provided (unmodified placeholder), retain the existing saved password
+        if not req.smtp_password:
+            existing = database.get_hr_smtp(current_user["user_id"])
+            if existing and existing.get("encrypted_smtp_password"):
+                encrypted_password = existing["encrypted_smtp_password"]
+            else:
+                raise HTTPException(status_code=400, detail="SMTP password is required.")
+        else:
+            encrypted_password = security.encrypt_password(req.smtp_password)
+
         database.update_hr_smtp(
             user_id=current_user["user_id"],
             email=req.smtp_email,
@@ -84,6 +93,8 @@ async def update_smtp_settings(
             port=req.smtp_port,
             encrypted_password=encrypted_password,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         print(f"[SETTINGS ERROR] Failed to save SMTP for HR {current_user['user_id']}: {exc}")
         raise HTTPException(status_code=500, detail="Failed to save SMTP settings. Please try again.")
