@@ -60,17 +60,33 @@ def _build_smtp_config(hr_id: int) -> dict | None:
     try:
         hr_smtp = database.get_hr_smtp(hr_id)
         if not hr_smtp:
+            print(f"[SMTP CONFIG] HR {hr_id} has no custom SMTP settings in DB — will use global fallback.")
             return None
-        decrypted_password = security.decrypt_password(hr_smtp["encrypted_smtp_password"])
+        encrypted_pw = hr_smtp.get("encrypted_smtp_password", "")
+        if not encrypted_pw:
+            print(f"[SMTP CONFIG] HR {hr_id} has SMTP row but password is empty.")
+            return None
+        decrypted_password = security.decrypt_password(encrypted_pw)
+        if not decrypted_password:
+            print(f"[SMTP CONFIG ERROR] HR {hr_id} — decryption returned empty string. Re-save SMTP settings in dashboard.")
+            return None
+        print(f"[SMTP CONFIG] HR {hr_id} — custom SMTP loaded OK (email={hr_smtp['smtp_email']}, host={hr_smtp['smtp_host']})")
         return {
             "smtp_email": hr_smtp["smtp_email"],
             "smtp_host": hr_smtp["smtp_host"],
             "smtp_port": hr_smtp["smtp_port"],
             "smtp_password": decrypted_password,
         }
-    except Exception as exc:
-        print(f"[SMTP CONFIG ERROR] Failed to build SMTP config for HR {hr_id}: {exc}")
+    except ValueError as exc:
+        # InvalidToken from Fernet — encryption key mismatch
+        email_info = hr_smtp.get("smtp_email") if 'hr_smtp' in locals() and hr_smtp else "unknown"
+        print(f"[SMTP CONFIG ERROR] HR {hr_id} (email={email_info}) — DECRYPTION FAILED (wrong encryption key?): {exc}")
+        print(f"[SMTP CONFIG ERROR] Fix: set SMTP_ENCRYPTION_KEY on Render, then re-save SMTP settings in dashboard.")
         return None
+    except Exception as exc:
+        print(f"[SMTP CONFIG ERROR] HR {hr_id} — unexpected error: {exc}")
+        return None
+
 
 
 @router.post("/jobs/{job_id}/apply")

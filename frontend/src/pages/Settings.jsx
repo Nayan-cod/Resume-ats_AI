@@ -18,6 +18,7 @@ export default function Settings() {
     const [smtpHost, setSmtpHost] = useState('');
     const [smtpPort, setSmtpPort] = useState(587);
     const [smtpPassword, setSmtpPassword] = useState('');
+    const [hasSavedPassword, setHasSavedPassword] = useState(false);
 
     // Inline feedback state (replaces alert() calls)
     const [smtpFetchError, setSmtpFetchError] = useState('');
@@ -40,6 +41,7 @@ export default function Settings() {
                         setSmtpHost(data.smtp_host || '');
                         setSmtpPort(data.smtp_port || 587);
                         setSmtpPassword(data.smtp_password || '');
+                        setHasSavedPassword(data.smtp_password === '********');
                     } else {
                         setSmtpFetchError('Could not load your SMTP settings. Please try refreshing.');
                     }
@@ -71,7 +73,9 @@ export default function Settings() {
             errors.smtpPort = 'Port must be between 1 and 65535.';
         }
 
-        if (smtpPassword && smtpPassword !== '********' && smtpPassword.length > 500) {
+        if (!smtpPassword && !hasSavedPassword) {
+            errors.smtpPassword = 'SMTP password is required.';
+        } else if (smtpPassword && smtpPassword !== '********' && smtpPassword.length > 500) {
             errors.smtpPassword = 'Password is too long (max 500 chars).';
         }
 
@@ -105,6 +109,8 @@ export default function Settings() {
                 if (res.ok) {
                     setSaveStatus('success');
                     setSaveMessage('SMTP settings saved successfully! You can now send candidate decision emails.');
+                    setHasSavedPassword(true);
+                    setSmtpPassword('********');
                 } else {
                     const data = await res.json();
                     setSaveStatus('error');
@@ -259,6 +265,7 @@ export default function Settings() {
                                             className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none ${smtpErrors.smtpPort ? 'border-red-400' : 'border-gray-200'}`}
                                         />
                                         {smtpErrors.smtpPort && <p className="text-xs text-red-500">{smtpErrors.smtpPort}</p>}
+                                        <p className="text-xs text-gray-400">Note: Standard ports (587, 465) are blocked on Render Free Tier. Use port 2525 (e.g. via Brevo) to bypass.</p>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-sm font-medium text-gray-700">SMTP Email (From Address)</label>
@@ -272,16 +279,31 @@ export default function Settings() {
                                         {smtpErrors.smtpEmail && <p className="text-xs text-red-500">{smtpErrors.smtpEmail}</p>}
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-sm font-medium text-gray-700">SMTP Password / App Password</label>
+                                        <label className="text-sm font-medium text-gray-700 flex items-center">
+                                            SMTP Password / App Password
+                                            {smtpPassword === '********' ? (
+                                                hasSavedPassword && (
+                                                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium border border-green-200">
+                                                        saved
+                                                    </span>
+                                                )
+                                            ) : (
+                                                <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-200">
+                                                    editing...
+                                                </span>
+                                            )}
+                                        </label>
                                         <input
                                             type="password"
                                             value={smtpPassword}
                                             onChange={(e) => setSmtpPassword(e.target.value)}
-                                            placeholder={smtpPassword === '********' ? '(password saved — enter new to change)' : 'Enter SMTP password'}
-                                            className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none ${smtpErrors.smtpPassword ? 'border-red-400' : 'border-gray-200'}`}
+                                            onFocus={() => { if (smtpPassword === '********') setSmtpPassword(''); }}
+                                            onBlur={() => { if (smtpPassword === '' && hasSavedPassword) setSmtpPassword('********'); }}
+                                            placeholder={smtpPassword === '********' ? 'Click here and type new password to change' : 'Enter your Gmail App Password'}
+                                            className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none ${smtpErrors.smtpPassword ? 'border-red-400' : smtpPassword === '********' ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}
                                         />
                                         {smtpErrors.smtpPassword && <p className="text-xs text-red-500">{smtpErrors.smtpPassword}</p>}
-                                        <p className="text-xs text-gray-400">For Gmail, use an App Password (not your account password).</p>
+                                        <p className="text-xs text-gray-400">For Gmail, use an App Password (not your account password). Spaces in the password are OK.</p>
                                     </div>
                                 </div>
                             </div>

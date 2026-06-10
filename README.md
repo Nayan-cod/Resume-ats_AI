@@ -139,6 +139,17 @@ Here are the key environment configurations required in [`backend/.env`](file://
 | `SMTP_EMAIL` | Credentials for automated HR email notifications | `your-email@gmail.com` |
 | `SMTP_ENCRYPTION_KEY` | Fernet key for encrypting SMTP credentials in DB | *Generate using Fernet* |
 
+> [!IMPORTANT]
+> **Outbound SMTP Port Blocks on Render Free Tier**:
+> Standard SMTP ports (`25`, `465`, `587`) are **blocked** on Render's Free Tier, which causes direct Gmail SMTP connection timeouts. 
+> 
+> **How to make it work:**
+> * **Option A (Local Testing)**: Test it locally on your computer using standard Gmail SMTP on port `587`, as local ISPs do not block SMTP traffic.
+> * **Option B (Free Production Bypass)**: Configure your global fallback and HR custom settings to use an SMTP relay provider (such as Brevo) that supports **Port `2525`** (which Render does *not* block).
+> * **Option C (Clean Production Setup)**: Upgrade your Render Web Service to any paid tier (starting at $7/month), which instantly unblocks ports `587` and `465`.
+> 
+> For full details, see the [Deployment & Troubleshooting Guide](file:///c:/College/Resume-ats_AI/documents/documentation/deployment_troubleshooting.md#Issue-7b-HR-Email-Settings--SMTP-Port-Blocks-on-Render-Free-Tier).
+
 ---
 
 ## 🤖 n8n Automation (Optional)

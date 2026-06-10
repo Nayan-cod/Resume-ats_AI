@@ -51,6 +51,11 @@ def decrypt_password(cipher_text: str) -> str:
     try:
         return fernet.decrypt(cipher_text.encode()).decode()
     except InvalidToken as exc:
+        # Calculate a short hash of the key used to help diagnose key mismatch
+        key_hash = hashlib.sha256(encryption_key.encode()).hexdigest()[:8]
+        print(f"[SECURITY DECRYPTION FAILURE] Fernet decryption failed. "
+              f"Active SMTP_ENCRYPTION_KEY (sha256 prefix): {key_hash}. "
+              f"Ciphertext length: {len(cipher_text)}. Error: {exc}")
         # This typically means the encryption key has changed or the ciphertext is corrupted.
         # Re-raise as ValueError so callers can handle it without importing cryptography internals.
         raise ValueError(

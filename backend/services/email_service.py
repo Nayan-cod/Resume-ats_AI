@@ -15,8 +15,12 @@ load_dotenv()
 
 SMTP_EMAIL = os.getenv("SMTP_EMAIL", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+
+try:
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+except ValueError:
+    SMTP_PORT = 587
 
 # Connection timeout in seconds — prevents SMTP hangs from blocking worker threads
 _SMTP_TIMEOUT_SECONDS = 10
@@ -76,7 +80,7 @@ def send_email(to_email: str, subject: str, html_body: str, smtp_config: dict = 
         print(f"[EMAIL SENT] To: {to_email} | Subject: {subject}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send to {to_email}: {e}")
+        print(f"[EMAIL ERROR] Failed to send to {to_email} via {server_host}:{server_port}: {e}")
         return False
 
 def send_approval_email(to_email: str, candidate_name: str, job_title: str, smtp_config: dict = None):

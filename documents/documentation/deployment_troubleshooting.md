@@ -116,7 +116,12 @@ Below is the detailed list of issues encountered during deployment, analysis of 
   ```
   Additionally, `backend/routers/applications.py` was updated to route each pending application to the correct email template (`send_approval_email` or `send_rejection_email`) based on `app["hr_status"]`.
 
-### Issue 7b: HR Email Settings — How SMTP Works
-* **Summary**: Each HR user can configure their own outbound mail server under **Settings → Email SMTP**. This is stored encrypted in the database and used when approving or rejecting candidates. If no SMTP is configured for an HR, the dashboard now displays a clear warning: *"Email not sent: No SMTP settings configured. Go to Settings → Email SMTP to set up your mail server."* — instead of silently failing.
+### Issue 7b: HR Email Settings & SMTP Port Blocks on Render Free Tier
+* **Summary**: Each HR user can configure their own outbound mail server under **Settings → Email SMTP**. This is stored encrypted in the database and used when approving or rejecting candidates. If no SMTP is configured for an HR, the dashboard displays a clear warning: *"Email not sent: No SMTP settings configured. Go to Settings → Email SMTP to set up your mail server."*
 * **Recommended SMTP for Gmail**: Use port `587` with STARTTLS, and generate a **Google App Password** (not your account password) at myaccount.google.com → Security → App Passwords.
+* **Outbound SMTP Port Blocks on Render Free Tier**:
+  * **Symptom**: Outbound SMTP email dispatches fail or hang with connection timeouts on the deployed Render environment, even though the exact same credentials and settings succeed 100% when tested locally.
+  * **Root Cause**: Render blocks all outbound network traffic on standard SMTP ports (**25**, **465**, and **587**) for all services running on the **Free Tier** to prevent spam and abuse.
+  * **Solution**: To enable custom SMTP email sending from the live deployed app, you must **upgrade the Render Web Service to a Paid Plan** (such as the $7/month Starter instance), which instantly lifts the outbound SMTP port block.
+
 
