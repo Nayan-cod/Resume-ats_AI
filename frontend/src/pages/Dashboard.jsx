@@ -372,14 +372,18 @@ ResumeAI ATS Platform`
                                                                          ))}
                                                                      </ul>
                                                                      <div className="mt-3 text-xs text-gray-500">
-                                                                         Resume: <a
-                                                                             href={`${API_URL}/${app.resume_path}`}
-                                                                             target="_blank"
-                                                                             rel="noopener noreferrer"
-                                                                             className="text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer"
-                                                                         >
-                                                                             {app.resume_filename}
-                                                                         </a>
+                                                                         Resume: {app.resume_path ? (
+                                                                             <a
+                                                                                 href={app.resume_path.startsWith('http') ? app.resume_path : `${API_URL}/${app.resume_path}`}
+                                                                                 target="_blank"
+                                                                                 rel="noopener noreferrer"
+                                                                                 className="text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer"
+                                                                             >
+                                                                                 {app.resume_filename}
+                                                                             </a>
+                                                                         ) : (
+                                                                             <span className="text-gray-400 italic font-medium">Deleted (Decision Made)</span>
+                                                                         )}
                                                                      </div>
                                                                  </div>
                                                              </td>

@@ -243,6 +243,18 @@ def update_application_hr_status(app_id: int, status: str, email_sent: bool = Fa
     conn.close()
     return dict(row) if row else None
 
+def clear_application_resume(app_id: int):
+    """Clear resume_path and resume_filename from the database when the PDF is deleted."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute(
+        'UPDATE applications SET resume_path = NULL, resume_filename = NULL WHERE id = %s',
+        (app_id,)
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_application_by_id(app_id: int) -> dict | None:
     conn = get_conn()
     c = conn.cursor()

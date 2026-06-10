@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from pydantic import BaseModel
 
-from services import database, auth, parser, privacy, matcher, email_service, security
+from services import database, auth, parser, privacy, matcher, email_service, security, storage
 
 router = APIRouter(prefix="/api", tags=["applications"])
 
@@ -57,29 +57,46 @@ async def apply_to_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    os.makedirs(TEMP_DIR, exist_ok=True)
     safe_filename = f"user{current_user['user_id']}_job{job_id}_{resume_file.filename}"
-    resume_path = f"{UPLOAD_DIR}/{safe_filename}"
+    temp_path = f"{TEMP_DIR}/{safe_filename}"
 
-    with open(resume_path, "wb") as buf:
+    with open(temp_path, "wb") as buf:
         shutil.copyfileobj(resume_file.file, buf)
+
+    try:
+        # Upload resume to Supabase Storage
+        supabase_url = storage.upload_resume(temp_path, safe_filename)
+    except Exception as exc:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Failed to upload resume to storage: {exc}")
 
     try:
         application = database.create_application(
             job_id=job_id,
             user_id=current_user["user_id"],
             resume_filename=resume_file.filename,
-            resume_path=resume_path,
+            resume_path=supabase_url,
         )
     except Exception as exc:
-        os.remove(resume_path)
+        # Delete from Supabase and local temp if DB save fails
+        storage.delete_resume(safe_filename)
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
             raise HTTPException(status_code=409, detail="You have already applied to this job")
         raise HTTPException(status_code=500, detail=str(exc))
 
     # AI screening
     try:
-        parsed_text = parser.parse_resume(resume_path)
+        try:
+            parsed_text = parser.parse_resume(temp_path)
+        finally:
+            # Delete local file immediately after parsing to avoid disk usage
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
         clean_text = privacy.anonymize_text(parsed_text)
         result = await matcher.evaluate_candidate(clean_text, job["description"])
 
@@ -114,6 +131,7 @@ async def apply_to_job(
         print(f"[WS ERROR] Stats broadcast failed: {exc}")
 
     return {"message": "Application submitted successfully", "application": _serialize_app(application)}
+
 
 
 @router.get("/hr/jobs/{job_id}/applications")
@@ -186,7 +204,19 @@ async def update_application_status(
     except Exception as exc:
         print(f"[SMTP ERROR] {exc}")
 
+    # Delete the PDF file from storage and clear the DB path upon decision
+    if app_details.get("resume_path"):
+        file_url = app_details["resume_path"]
+        if file_url.startswith("http"):
+            filename_key = file_url.split("/")[-1]
+            try:
+                storage.delete_resume(filename_key)
+                database.clear_application_resume(app_id)
+            except Exception as exc:
+                print(f"[CLEANUP ERROR] Failed to delete resume {filename_key} from storage: {exc}")
+
     updated = database.update_application_hr_status(app_id, req.status, success)
+
 
     await ws_manager.broadcast({
         "type": "status_update",
