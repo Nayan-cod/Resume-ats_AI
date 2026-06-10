@@ -13,7 +13,7 @@ export default function Candidates() {
     const fetchCandidates = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/candidates`);
+            const response = await fetch(`${API_URL}/api/candidates`);
             if (response.ok) {
                  const data = await response.json();
                  setCandidates(data);

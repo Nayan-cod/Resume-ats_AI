@@ -293,3 +293,20 @@ async def release_emails(
         "released_count": len(sent_ids),
         "failed_count": failed_count,
     }
+
+
+@router.get("/candidates")
+async def get_all_candidates():
+    """Return all candidate applications in the system, formatted for the candidates view."""
+    apps = database.get_all_applications()
+    return [
+        {
+            "id": app["id"],
+            "candidate_name": app["candidate_name"] or app["applicant_name"] or "Unknown",
+            "candidate_role": app["candidate_role"] or "N/A",
+            "score": app["ai_score"],
+            "decision": app["ai_decision"],
+            "timestamp": str(app["created_at"])
+        }
+        for app in apps
+    ]

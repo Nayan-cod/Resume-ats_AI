@@ -1,0 +1,21 @@
+ResumeAI ATS Technical Documentation
+===================================
+
+Architecture Overview
+---------------------
+ResumeAI ATS is an AI-powered Applicant Tracking System that screens candidates against Job Descriptions.
+It consists of:
+1. React Frontend (Vite)
+2. FastAPI Backend
+3. PostgreSQL Database
+4. Qdrant Vector Database (In-memory) for Chatbot RAG search.
+
+Key Technical Stack & Details:
+- Parser: Docling is used to parse incoming PDF resumes into structured Markdown text.
+- Text Splitter: RecursiveCharacterTextSplitter from LangChain (chunk size 500, overlap 50) chunks the parsed text.
+- Embeddings: sentence-transformers/all-MiniLM-L6-v2 is used for generating high-quality semantic embeddings.
+- Vector Store: Qdrant (In-Memory) is used for fast semantic similarity search.
+- LLM Model: Qwen/Qwen2.5-7B-Instruct or Llama-3.1-8B-Instruct is used for evaluating candidates against Job Descriptions, match scoring (0-100), and providing detailed justifications (skills, experience, education, projects).
+- WebSockets: Real-time communication for dashboard updates when a candidate applies.
+- SMTP Email Service: Automatically sends emails using SMTP when an application status is updated by HR.
+- Authentication: Secure registration and login using JWT (JSON Web Tokens) and Bcrypt hashing.

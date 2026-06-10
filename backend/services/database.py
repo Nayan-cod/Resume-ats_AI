@@ -218,6 +218,22 @@ def get_applications_by_user(user_id: int) -> list:
     conn.close()
     return [dict(r) for r in rows]
 
+def get_all_applications() -> list:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''
+        SELECT a.id, a.job_id, a.user_id, a.resume_filename, a.resume_path,
+               a.ai_score, a.ai_decision, a.ai_justification, a.hr_status,
+               a.candidate_name, a.candidate_role, a.email_sent, a.created_at,
+               u.name as applicant_name, u.email as applicant_email
+        FROM applications a
+        JOIN users u ON a.user_id = u.id
+        ORDER BY a.created_at DESC
+    ''')
+    rows = c.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 def update_application_ai(app_id: int, score: int, decision: str, justification: str, candidate_name: str = '', candidate_role: str = ''):
     conn = get_conn()
     c = conn.cursor()

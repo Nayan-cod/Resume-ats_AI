@@ -99,6 +99,15 @@ app.state.ws_manager = ws_manager  # Injected into routers via request.app.state
 database.init_db()
 threading.Thread(target=chatbot.init_chatbot_kb, daemon=True).start()
 
+@app.get("/", tags=["status"])
+async def root():
+    return {
+        "status": "online",
+        "service": "ResumeAI ATS API",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
+
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(auth_router.router)
@@ -164,9 +173,12 @@ async def chat_endpoint(req: ChatRequest):
 if __name__ == "__main__":
     import uvicorn
 
+    # Disable reload in production on Render to save resources and prevent duplicate startups
+    is_render = os.getenv("RENDER") == "true"
+
     uvicorn.run(
         "main:app",
         host=os.getenv("HOST", "0.0.0.0"),
         port=int(os.getenv("PORT", 8001)),
-        reload=True,
+        reload=not is_render,
     )
