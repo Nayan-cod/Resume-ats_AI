@@ -1,14 +1,18 @@
-from docling.document_converter import DocumentConverter
+import pypdf
 
 def parse_resume(file_path: str) -> str:
     """
-    Parses a PDF resume using Docling and returns Markdown text.
+    Parses a PDF resume using pypdf and returns text.
     """
     try:
-        converter = DocumentConverter()
-        result = converter.convert(file_path)
-        return result.document.export_to_markdown()
+        reader = pypdf.PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+        return text
     except Exception as e:
         print(f"Error parsing resume: {e}")
-        # Build in a fallback or just re-raise for now
         raise e
+
