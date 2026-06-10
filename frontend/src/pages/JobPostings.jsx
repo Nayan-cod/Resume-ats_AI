@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import { Briefcase, FileText } from 'lucide-react';
+import { API_URL } from '../lib/config';
 
 export default function JobPostings() {
     const [jobs, setJobs] = useState([]);
@@ -13,7 +14,7 @@ export default function JobPostings() {
     const fetchJobs = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8001/jobs');
+            const response = await fetch(`${API_URL}/jobs`);
             if (response.ok) {
                  const data = await response.json();
                  setJobs(data);

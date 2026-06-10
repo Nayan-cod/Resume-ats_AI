@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import DragDropUpload from '../DragDropUpload';
 import JobDescriptionInput from '../JobDescriptionInput';
 import { RefreshCw } from 'lucide-react';
+import { API_URL } from '../../lib/config';
 
 export default function ScreeningWidget() {
     const [file, setFile] = useState(null);
@@ -25,7 +26,7 @@ export default function ScreeningWidget() {
         formData.append('job_description', jd);
 
         try {
-            const response = await fetch('http://localhost:8001/analyze', {
+            const response = await fetch(`${API_URL}/analyze`, {
                 method: 'POST',
                 body: formData,
             });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import { Search, Filter } from 'lucide-react';
+import { API_URL } from '../lib/config';
 
 export default function Candidates() {
     const [candidates, setCandidates] = useState([]);
@@ -12,7 +13,7 @@ export default function Candidates() {
     const fetchCandidates = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:8001/candidates`);
+            const response = await fetch(`${API_URL}/candidates`);
             if (response.ok) {
                  const data = await response.json();
                  setCandidates(data);

@@ -36,9 +36,20 @@ app = FastAPI(
     description="AI-powered Applicant Tracking System backend.",
 )
 
+origins = [o.strip().rstrip('/') for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+default_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://resume-ats-ai-theta.vercel.app"
+]
+for default in default_origins:
+    if default not in origins:
+        origins.append(default)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
